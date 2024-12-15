@@ -2,8 +2,23 @@ from flask import Flask, request, jsonify
 from PIL import Image
 import requests
 from io import BytesIO
+from geopy.distance import geodesic
 
 app = Flask(__name__)
+
+def get_bbox(latitude, longitude, offset):
+    # Calculate the offsets in meters
+    lat_offset_m = offset * 111320  # Approx conversion of degrees to meters
+    lon_offset_m = offset * 40075000 / 360 * abs(latitude / 90)  # Longitude conversion varies with latitude
+
+    # Calculate new bounding box coordinates considering the Earth's curvature
+    bottom_left = geodesic(meters=lat_offset_m).destination((latitude, longitude), 225)  # SW
+    top_right = geodesic(meters=lat_offset_m).destination((latitude, longitude), 45)  # NE
+
+    xmin, ymin = bottom_left.longitude, bottom_left.latitude
+    xmax, ymax = top_right.longitude, top_right.latitude
+
+    return xmin, ymin, xmax, ymax
 
 @app.route('/get_pixels', methods=['POST'])
 def get_pixels():
@@ -13,10 +28,7 @@ def get_pixels():
         longitude = float(data['longitude'])
         offset = 0.005
 
-        xmin = longitude - offset
-        ymin = latitude - offset
-        xmax = longitude + offset
-        ymax = latitude + offset
+        xmin, ymin, xmax, ymax = get_bbox(latitude, longitude, offset)
 
         url = (
             'https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?'
