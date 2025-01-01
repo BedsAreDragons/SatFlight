@@ -34,7 +34,7 @@ def get_pixels():
             'https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?'
             'bbox={xmin},{ymin},{xmax},{ymax}'
             '&bboxSR=4326'
-            '&size=1600,1600'
+            '&size=800,800'
             '&imageSR=4326'
             '&format=png32'
             '&f=image'
