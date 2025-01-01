@@ -101,19 +101,21 @@ def get_extra_tiles():
         big_image = Image.new('RGB', (tile_size * 3, tile_size * 3))
 
         # Paste the tiles into the big image
-        # We explicitly swap rows to ensure correct placement
         for i, tile_img in enumerate(tiles):
             row = i // 3
             col = i % 3
             adjusted_row = 2 - row  # Swap rows
             big_image.paste(tile_img, (col * tile_size, adjusted_row * tile_size))
 
-        big_image_bytes = BytesIO()
-        big_image.save(big_image_bytes, format='PNG')
-        big_image_bytes.seek(0)
-        response = app.response_class(big_image_bytes, content_type='image/png')
+        # Resize down to 400x400 to achieve pixelation
+        pixelated_img = big_image.resize((400, 400), resample=Image.NEAREST)
+        pixelated_img = pixelated_img.convert('RGB')
 
-        return response, 200
+        pixel_data = list(pixelated_img.getdata())
+
+        pixels = [list(pixel) for pixel in pixel_data]
+
+        return jsonify(pixels), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
