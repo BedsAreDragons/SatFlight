@@ -34,7 +34,7 @@ def get_pixels():
             'https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?'
             'bbox={xmin},{ymin},{xmax},{ymax}'
             '&bboxSR=4326'
-            '&size=400,400'
+            '&size=800,800'  # Fetch 800x800 image
             '&imageSR=4326'
             '&format=png32'
             '&f=image'
@@ -45,8 +45,9 @@ def get_pixels():
 
         img = Image.open(BytesIO(response.content))
 
-        small = img.resize((800, 800), resample=Image.BILINEAR)
-        pixelated_img = small.resize(img.size, Image.NEAREST)
+        # Resize to 400x400 for pixelation effect
+        small = img.resize((400, 400), resample=Image.BILINEAR)
+        pixelated_img = small.resize((800, 800), Image.NEAREST)
 
         pixelated_img = pixelated_img.convert('RGB')
 
