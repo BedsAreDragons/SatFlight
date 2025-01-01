@@ -26,7 +26,7 @@ def get_pixels():
         data = request.get_json()
         latitude = float(data['latitude'])
         longitude = float(data['longitude'])
-        offset = 0.01  # Updated offset size
+        offset = 0.02  # Updated offset size
 
         xmin, ymin, xmax, ymax = get_bbox(latitude, longitude, offset)
 
