@@ -46,7 +46,7 @@ def get_pixels():
         data = request.get_json()
         latitude = float(data['latitude'])
         longitude = float(data['longitude'])
-        offset = 0.005  # Updated offset size
+        offset = 0.02  # Updated offset size
 
         xmin, ymin, xmax, ymax = get_bbox(latitude, longitude, offset)
 
@@ -85,7 +85,7 @@ def get_extra_tiles():
         data = request.get_json()
         latitude = float(data['latitude'])
         longitude = float(data['longitude'])
-        offset = 0.02  # Same offset as before
+        offset = 0.005  # Same offset as before
         tile_size = 800  # Size of each tile image
 
         tiles = []
