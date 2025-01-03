@@ -85,7 +85,7 @@ def get_extra_tiles():
         data = request.get_json()
         latitude = float(data['latitude'])
         longitude = float(data['longitude'])
-        offset = 0.002  # Same offset as before
+        offset = 0.0035  # Same offset as before
         tile_size = 800  # Size of each tile image
 
         tiles = []
