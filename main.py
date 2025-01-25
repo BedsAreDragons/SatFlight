@@ -79,7 +79,7 @@ def get_pixels():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/get_pixels_high', methods=['POST'])
+@app.route('/get_pixels_med', methods=['POST'])
 def get_pixels():
     try:
         data = request.get_json()
