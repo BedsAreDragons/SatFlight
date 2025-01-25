@@ -40,13 +40,91 @@ def get_image(xmin, ymin, xmax, ymax):
     else:
         raise Exception('Failed to retrieve the image')
 
-@app.route('/get_pixels', methods=['POST'])
+@app.route('/get_pixels_high', methods=['POST'])
 def get_pixels():
     try:
         data = request.get_json()
         latitude = float(data['latitude'])
         longitude = float(data['longitude'])
         offset = 0.02  # Updated offset size
+
+        xmin, ymin, xmax, ymax = get_bbox(latitude, longitude, offset)
+
+        url = (
+            'https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?'
+            'bbox={xmin},{ymin},{xmax},{ymax}'
+            '&bboxSR=4326'
+            '&size=800,800'  # Fetch 800x800 image for better initial detail
+            '&imageSR=4326'
+            '&format=png32'
+            '&f=image'
+        ).format(xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax)
+
+        response = requests.get(url, stream=True)
+        response.raise_for_status()  # Raises an HTTPError if the HTTP request returned an unsuccessful status code
+
+        img = Image.open(BytesIO(response.content))
+
+        # Resize down to 400x400 to achieve pixelation
+        pixelated_img = img.resize((400, 400), resample=Image.NEAREST)
+
+        pixelated_img = pixelated_img.convert('RGB')
+
+        pixel_data = list(pixelated_img.getdata())
+
+        pixels = [list(pixel) for pixel in pixel_data]
+
+        return jsonify(pixels), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/get_pixels_high', methods=['POST'])
+def get_pixels():
+    try:
+        data = request.get_json()
+        latitude = float(data['latitude'])
+        longitude = float(data['longitude'])
+        offset = 0.08  # Updated offset size
+
+        xmin, ymin, xmax, ymax = get_bbox(latitude, longitude, offset)
+
+        url = (
+            'https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?'
+            'bbox={xmin},{ymin},{xmax},{ymax}'
+            '&bboxSR=4326'
+            '&size=800,800'  # Fetch 800x800 image for better initial detail
+            '&imageSR=4326'
+            '&format=png32'
+            '&f=image'
+        ).format(xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax)
+
+        response = requests.get(url, stream=True)
+        response.raise_for_status()  # Raises an HTTPError if the HTTP request returned an unsuccessful status code
+
+        img = Image.open(BytesIO(response.content))
+
+        # Resize down to 400x400 to achieve pixelation
+        pixelated_img = img.resize((400, 400), resample=Image.NEAREST)
+
+        pixelated_img = pixelated_img.convert('RGB')
+
+        pixel_data = list(pixelated_img.getdata())
+
+        pixels = [list(pixel) for pixel in pixel_data]
+
+        return jsonify(pixels), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/get_pixels_low', methods=['POST'])
+def get_pixels():
+    try:
+        data = request.get_json()
+        latitude = float(data['latitude'])
+        longitude = float(data['longitude'])
+        offset = 0.2  # Updated offset size
 
         xmin, ymin, xmax, ymax = get_bbox(latitude, longitude, offset)
 
