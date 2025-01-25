@@ -41,7 +41,7 @@ def get_image(xmin, ymin, xmax, ymax):
         raise Exception('Failed to retrieve the image')
 
 @app.route('/get_pixels_high', methods=['POST'])
-def get_pixels():
+def get_pixels_high():
     try:
         data = request.get_json()
         latitude = float(data['latitude'])
@@ -54,7 +54,7 @@ def get_pixels():
             'https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?'
             'bbox={xmin},{ymin},{xmax},{ymax}'
             '&bboxSR=4326'
-            '&size=800,800'  # Fetch 800x800 image for better initial detail
+            '&size400,400'  # Fetch 800x800 image for better initial detail
             '&imageSR=4326'
             '&format=png32'
             '&f=image'
@@ -67,9 +67,7 @@ def get_pixels():
 
         # Resize down to 400x400 to achieve pixelation
         pixelated_img = img.resize((400, 400), resample=Image.NEAREST)
-
         pixelated_img = pixelated_img.convert('RGB')
-
         pixel_data = list(pixelated_img.getdata())
 
         pixels = [list(pixel) for pixel in pixel_data]
@@ -80,7 +78,7 @@ def get_pixels():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/get_pixels_med', methods=['POST'])
-def get_pixels():
+def get_pixels_med():
     try:
         data = request.get_json()
         latitude = float(data['latitude'])
@@ -106,9 +104,7 @@ def get_pixels():
 
         # Resize down to 400x400 to achieve pixelation
         pixelated_img = img.resize((400, 400), resample=Image.NEAREST)
-
         pixelated_img = pixelated_img.convert('RGB')
-
         pixel_data = list(pixelated_img.getdata())
 
         pixels = [list(pixel) for pixel in pixel_data]
@@ -119,7 +115,7 @@ def get_pixels():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/get_pixels_low', methods=['POST'])
-def get_pixels():
+def get_pixels_low():
     try:
         data = request.get_json()
         latitude = float(data['latitude'])
@@ -145,9 +141,7 @@ def get_pixels():
 
         # Resize down to 400x400 to achieve pixelation
         pixelated_img = img.resize((400, 400), resample=Image.NEAREST)
-
         pixelated_img = pixelated_img.convert('RGB')
-
         pixel_data = list(pixelated_img.getdata())
 
         pixels = [list(pixel) for pixel in pixel_data]
@@ -188,7 +182,6 @@ def get_extra_tiles():
         # Resize down to 400x400 to achieve pixelation
         pixelated_img = big_image.resize((400, 400), resample=Image.NEAREST)
         pixelated_img = pixelated_img.convert('RGB')
-
         pixel_data = list(pixelated_img.getdata())
 
         pixels = [list(pixel) for pixel in pixel_data]
