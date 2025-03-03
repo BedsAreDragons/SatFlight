@@ -2,5 +2,5 @@ aiohttp
 requests
 Pillow
 python-dotenv
-gunicorn
+uvicorn
 geopy
