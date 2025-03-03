@@ -1,4 +1,4 @@
-Flask
+aiohttp
 requests
 Pillow
 python-dotenv
