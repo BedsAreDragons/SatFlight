@@ -1,195 +1,117 @@
-from flask import Flask, request, jsonify
+import aiohttp
+from aiohttp import web
 from PIL import Image
-import requests
 from io import BytesIO
-import json
 from geopy.distance import geodesic
+import asyncio
 
-app = Flask(__name__)
+# Constants
+TILE_SIZE = 400
+ARC_GIS_URL = "https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export"
 
+# Helper function to calculate bounding box
 def get_bbox(latitude, longitude, offset):
-    # Calculate the offsets in meters
-    lat_offset_m = offset * 111320  # Approx conversion of degrees to meters
-    lon_offset_m = offset * 40075000 / 360 * abs(latitude / 90)  # Longitude conversion varies with latitude
-
-    # Calculate new bounding box coordinates considering the Earth's curvature
-    bottom_left = geodesic(meters=lat_offset_m).destination((latitude, longitude), 225)  # SW
-    top_right = geodesic(meters=lat_offset_m).destination((latitude, longitude), 45)  # NE
-
+    lat_offset_m = offset * 111320
+    lon_offset_m = offset * 40075000 / 360 * abs(latitude / 90)
+    bottom_left = geodesic(meters=lat_offset_m).destination((latitude, longitude), 225)
+    top_right = geodesic(meters=lat_offset_m).destination((latitude, longitude), 45)
     xmin, ymin = bottom_left.longitude, bottom_left.latitude
     xmax, ymax = top_right.longitude, top_right.latitude
-
     return xmin, ymin, xmax, ymax
 
-def get_image(xmin, ymin, xmax, ymax):
-    url = (
-        'https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?'
-        'bbox={xmin},{ymin},{xmax},{ymax}'
-        '&bboxSR=4326'
-        '&size=800,800'
-        '&imageSR=4326'
-        '&format=png32'
-        '&f=image'
-    ).format(xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax)
+# Helper function to fetch and process an image
+async def fetch_and_process_image(session, xmin, ymin, xmax, ymax):
+    params = {
+        "bbox": f"{xmin},{ymin},{xmax},{ymax}",
+        "bboxSR": "4326",
+        "size": f"{TILE_SIZE},{TILE_SIZE}",
+        "imageSR": "4326",
+        "format": "png32",
+        "f": "image"
+    }
+    async with session.get(ARC_GIS_URL, params=params) as response:
+        if response.status != 200:
+            raise Exception(f"Failed to fetch image: HTTP {response.status}")
+        img_data = await response.read()
+        img = Image.open(BytesIO(img_data)).convert("RGB")
+        pixelated_img = img.resize((TILE_SIZE, TILE_SIZE), resample=Image.NEAREST)
+        return list(pixelated_img.getdata())
 
-    response = requests.get(url, stream=True)
-
-    if response.status_code == 200:
-        img = Image.open(BytesIO(response.content))
-        return img
-    else:
-        raise Exception('Failed to retrieve the image')
-
-@app.route('/get_pixels_high', methods=['POST'])
-def get_pixels_high():
+# API endpoint for high-resolution tile
+async def get_pixels_high(request):
     try:
-        data = request.get_json()
-        latitude = float(data['latitude'])
-        longitude = float(data['longitude'])
-        offset = 0.02  # Updated offset size
-
+        data = await request.json()
+        latitude = float(data["latitude"])
+        longitude = float(data["longitude"])
+        offset = 0.02  # Adjust for desired resolution
         xmin, ymin, xmax, ymax = get_bbox(latitude, longitude, offset)
-
-        url = (
-            'https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?'
-            'bbox={xmin},{ymin},{xmax},{ymax}'
-            '&bboxSR=4326'
-            '&size400,400'  # Fetch 800x800 image for better initial detail
-            '&imageSR=4326'
-            '&format=png32'
-            '&f=image'
-        ).format(xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax)
-
-        response = requests.get(url, stream=True)
-        response.raise_for_status()  # Raises an HTTPError if the HTTP request returned an unsuccessful status code
-
-        img = Image.open(BytesIO(response.content))
-
-        # Resize down to 400x400 to achieve pixelation
-        pixelated_img = img.resize((400, 400), resample=Image.NEAREST)
-        pixelated_img = pixelated_img.convert('RGB')
-        pixel_data = list(pixelated_img.getdata())
-
-        pixels = [list(pixel) for pixel in pixel_data]
-
-        return jsonify(pixels), 200
-
+        
+        async with aiohttp.ClientSession() as session:
+            pixels = await fetch_and_process_image(session, xmin, ymin, xmax, ymax)
+        
+        return web.json_response(pixels)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return web.json_response({"error": str(e)}, status=500)
 
-@app.route('/get_pixels_med', methods=['POST'])
-def get_pixels_med():
+# API endpoint for low-resolution tile
+async def get_pixels_low(request):
     try:
-        data = request.get_json()
-        latitude = float(data['latitude'])
-        longitude = float(data['longitude'])
-        offset = 0.08  # Updated offset size
-
+        data = await request.json()
+        latitude = float(data["latitude"])
+        longitude = float(data["longitude"])
+        offset = 0.2  # Adjust for desired resolution
         xmin, ymin, xmax, ymax = get_bbox(latitude, longitude, offset)
-
-        url = (
-            'https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?'
-            'bbox={xmin},{ymin},{xmax},{ymax}'
-            '&bboxSR=4326'
-            '&size=800,800'  # Fetch 800x800 image for better initial detail
-            '&imageSR=4326'
-            '&format=png32'
-            '&f=image'
-        ).format(xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax)
-
-        response = requests.get(url, stream=True)
-        response.raise_for_status()  # Raises an HTTPError if the HTTP request returned an unsuccessful status code
-
-        img = Image.open(BytesIO(response.content))
-
-        # Resize down to 400x400 to achieve pixelation
-        pixelated_img = img.resize((400, 400), resample=Image.NEAREST)
-        pixelated_img = pixelated_img.convert('RGB')
-        pixel_data = list(pixelated_img.getdata())
-
-        pixels = [list(pixel) for pixel in pixel_data]
-
-        return jsonify(pixels), 200
-
+        
+        async with aiohttp.ClientSession() as session:
+            pixels = await fetch_and_process_image(session, xmin, ymin, xmax, ymax)
+        
+        return web.json_response(pixels)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return web.json_response({"error": str(e)}, status=500)
 
-@app.route('/get_pixels_low', methods=['POST'])
-def get_pixels_low():
+# API endpoint for extra tiles (3x3 grid)
+async def get_extra_tiles(request):
     try:
-        data = request.get_json()
-        latitude = float(data['latitude'])
-        longitude = float(data['longitude'])
-        offset = 0.2  # Updated offset size
+        data = await request.json()
+        latitude = float(data["latitude"])
+        longitude = float(data["longitude"])
+        offset = 0.0035  # Adjust for tile proximity
+        tile_size = TILE_SIZE
 
-        xmin, ymin, xmax, ymax = get_bbox(latitude, longitude, offset)
+        # Prepare bounding box data for 3x3 grid
+        tasks = []
+        async with aiohttp.ClientSession() as session:
+            for dy in [-1, 0, 1]:
+                for dx in [-1, 0, 1]:
+                    tile_xmin, tile_ymin, tile_xmax, tile_ymax = get_bbox(
+                        latitude + dy * offset, longitude + dx * offset, offset
+                    )
+                    tasks.append(fetch_and_process_image(session, tile_xmin, tile_ymin, tile_xmax, tile_ymax))
+            
+            tiles = await asyncio.gather(*tasks)
 
-        url = (
-            'https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?'
-            'bbox={xmin},{ymin},{xmax},{ymax}'
-            '&bboxSR=4326'
-            '&size=800,800'  # Fetch 800x800 image for better initial detail
-            '&imageSR=4326'
-            '&format=png32'
-            '&f=image'
-        ).format(xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax)
-
-        response = requests.get(url, stream=True)
-        response.raise_for_status()  # Raises an HTTPError if the HTTP request returned an unsuccessful status code
-
-        img = Image.open(BytesIO(response.content))
-
-        # Resize down to 400x400 to achieve pixelation
-        pixelated_img = img.resize((400, 400), resample=Image.NEAREST)
-        pixelated_img = pixelated_img.convert('RGB')
-        pixel_data = list(pixelated_img.getdata())
-
-        pixels = [list(pixel) for pixel in pixel_data]
-
-        return jsonify(pixels), 200
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/get_extra_tiles', methods=['POST'])
-def get_extra_tiles():
-    try:
-        data = request.get_json()
-        latitude = float(data['latitude'])
-        longitude = float(data['longitude'])
-        offset = 0.0035  # Same offset as before
-        tile_size = 800  # Size of each tile image
-
-        tiles = []
-        for dy in [-1, 0, 1]:  # Iterate from bottom to top
-            for dx in [-1, 0, 1]:
-                tile_xmin = longitude + dx * offset
-                tile_ymin = latitude + dy * offset
-                tile_xmax = tile_xmin + offset
-                tile_ymax = tile_ymin + offset
-                tile_img = get_image(tile_xmin, tile_ymin, tile_xmax, tile_ymax)
-                tiles.append(tile_img)
-
-        big_image = Image.new('RGB', (tile_size * 3, tile_size * 3))
-
-        # Paste the tiles into the big image
-        for i, tile_img in enumerate(tiles):
-            row = i // 3
-            col = i % 3
-            adjusted_row = 2 - row  # Swap rows
+        # Merge tiles into a single image
+        big_image = Image.new("RGB", (tile_size * 3, tile_size * 3))
+        for i, tile_pixels in enumerate(tiles):
+            tile_img = Image.new("RGB", (tile_size, tile_size))
+            tile_img.putdata([tuple(pixel) for pixel in tile_pixels])
+            row, col = divmod(i, 3)
+            adjusted_row = 2 - row  # Flip rows to align correctly
             big_image.paste(tile_img, (col * tile_size, adjusted_row * tile_size))
 
-        # Resize down to 400x400 to achieve pixelation
-        pixelated_img = big_image.resize((400, 400), resample=Image.NEAREST)
-        pixelated_img = pixelated_img.convert('RGB')
-        pixel_data = list(pixelated_img.getdata())
+        # Pixelate and convert to pixel data
+        pixelated_img = big_image.resize((TILE_SIZE, TILE_SIZE), resample=Image.NEAREST)
+        pixels = list(pixelated_img.getdata())
 
-        pixels = [list(pixel) for pixel in pixel_data]
-
-        return jsonify(pixels), 200
-
+        return web.json_response(pixels)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return web.json_response({"error": str(e)}, status=500)
 
-if __name__ == '__main__':
-    app.run(debug=True, host="0.0.0.0", port=5000)
+# Application setup
+app = web.Application()
+app.router.add_post("/get_pixels_high", get_pixels_high)
+app.router.add_post("/get_pixels_low", get_pixels_low)
+app.router.add_post("/get_extra_tiles", get_extra_tiles)
+
+if __name__ == "__main__":
+    web.run_app(app, host="0.0.0.0", port=5000)
