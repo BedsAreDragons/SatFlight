@@ -1,64 +1,57 @@
-from aiohttp import web, ClientSession
+from aiohttp import web
 from PIL import Image
 from io import BytesIO
+import numpy as np
 import json
-from geopy.distance import geodesic
+import random
 
-async def get_bbox(latitude, longitude, offset):
-    lat_offset_m = offset * 111320
-    lon_offset_m = offset * 40075000 / 360 * abs(latitude / 90)
-    bottom_left = geodesic(meters=lat_offset_m).destination((latitude, longitude), 225)
-    top_right = geodesic(meters=lat_offset_m).destination((latitude, longitude), 45)
-    return bottom_left.longitude, bottom_left.latitude, top_right.longitude, top_right.latitude
+# Constants for generating synthetic or testing data
+TILE_SIZE = 400  # 400x400 grid for tiles
+ELEVATION_MAX = 50  # Maximum elevation in studs
 
-async def fetch_image(session, xmin, ymin, xmax, ymax):
-    url = (
-        'https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?'
-        f'bbox={xmin},{ymin},{xmax},{ymax}'
-        '&bboxSR=4326'
-        '&size=800,800'
-        '&imageSR=4326'
-        '&format=png32'
-        '&f=image'
-    )
-    async with session.get(url) as response:
-        if response.status == 200:
-            img = Image.open(BytesIO(await response.read()))
-            return img
-        raise web.HTTPInternalServerError(text='Failed to retrieve image')
+# Function to generate synthetic elevation data
+def generate_elevation_data():
+    elevation_data = []
+    for _ in range(TILE_SIZE * TILE_SIZE):
+        elevation_data.append(random.randint(0, ELEVATION_MAX))  # Random elevation
+    return elevation_data
 
-async def process_terrain_request(latitude, longitude, offset):
+# Function to generate synthetic color data
+def generate_color_data():
+    color_data = []
+    for _ in range(TILE_SIZE * TILE_SIZE):
+        color_data.append([random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)])  # Random color
+    return color_data
+
+# API endpoint to provide terrain data
+async def get_terrain_data(request):
     try:
-        xmin, ymin, xmax, ymax = await get_bbox(latitude, longitude, offset)
-        async with ClientSession() as session:
-            img = await fetch_image(session, xmin, ymin, xmax, ymax)
-        pixelated_img = img.resize((400, 400), resample=Image.NEAREST).convert('RGB')
-        pixels = [list(pixel) for pixel in pixelated_img.getdata()]
-        return pixels
-    except Exception as e:
-        raise Exception(f"Error processing terrain request: {str(e)}")
-
-# New route to handle POST requests for loading terrain
-async def load_terrain(request):
-    try:
+        # Parse the incoming request
         data = await request.json()
         latitude = float(data['latitude'])
         longitude = float(data['longitude'])
-        offset = float(data.get('offset', 0.02))  # Default offset if not provided
 
-        print(f"Processing terrain for coordinates: ({latitude}, {longitude})")
-        pixels = await process_terrain_request(latitude, longitude, offset)
+        # Log the requested coordinates
+        print(f"Received terrain request for Latitude: {latitude}, Longitude: {longitude}")
 
-        return web.json_response({
-            'status': 'success',
-            'pixels': pixels
-        })
+        # Here you could fetch real-world terrain data if available
+        # Instead, we generate synthetic data for this example
+        elevation_data = generate_elevation_data()
+        color_data = generate_color_data()
+
+        # Send the generated data back as JSON
+        response = {
+            "heights": elevation_data,
+            "colors": color_data
+        }
+        return web.json_response(response)
     except Exception as e:
         return web.json_response({'error': str(e)}, status=500)
 
-# Web server setup
+# Set up the web application
 app = web.Application()
-app.router.add_post('/load_terrain', load_terrain)
+app.router.add_post('/get_pixels_with_elevation', get_terrain_data)
 
+# Run the server
 if __name__ == '__main__':
     web.run_app(app, host='0.0.0.0', port=5000)
